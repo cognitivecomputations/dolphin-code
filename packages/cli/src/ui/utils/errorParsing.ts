@@ -4,103 +4,86 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AuthType, StructuredError } from '@google/gemini-cli-core';
+import { AuthType, StructuredError } from '@google/dolphin-cli-core'; // Corrected import
 
-const RATE_LIMIT_ERROR_MESSAGE_GOOGLE =
-  '\nPlease wait and try again later. To increase your limits, upgrade to a plan with higher limits, or use /auth to switch to using a paid API key from AI Studio at https://aistudio.google.com/apikey';
-const RATE_LIMIT_ERROR_MESSAGE_USE_GEMINI =
-  '\nPlease wait and try again later. To increase your limits, request a quota increase through AI Studio, or switch to another /auth method';
-const RATE_LIMIT_ERROR_MESSAGE_VERTEX =
-  '\nPlease wait and try again later. To increase your limits, request a quota increase through Vertex, or switch to another /auth method';
-const RATE_LIMIT_ERROR_MESSAGE_DEFAULT =
-  'Your request has been rate limited. Please wait and try again later.';
+export function parseError(error: unknown, currentAuthType?: AuthType): string {
+  let message = 'An unexpected error occurred.';
+  let troubleshooting = '';
 
-export interface ApiError {
-  error: {
-    code: number;
-    message: string;
-    status: string;
-    details: unknown[];
-  };
-}
-
-function isApiError(error: unknown): error is ApiError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'error' in error &&
-    typeof (error as ApiError).error === 'object' &&
-    'message' in (error as ApiError).error
-  );
-}
-
-function isStructuredError(error: unknown): error is StructuredError {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof (error as StructuredError).message === 'string'
-  );
-}
-
-function getRateLimitMessage(authType?: AuthType): string {
-  switch (authType) {
-    case AuthType.LOGIN_WITH_GOOGLE_PERSONAL:
-      return RATE_LIMIT_ERROR_MESSAGE_GOOGLE;
-    case AuthType.USE_GEMINI:
-      return RATE_LIMIT_ERROR_MESSAGE_USE_GEMINI;
-    case AuthType.USE_VERTEX_AI:
-      return RATE_LIMIT_ERROR_MESSAGE_VERTEX;
-    default:
-      return RATE_LIMIT_ERROR_MESSAGE_DEFAULT;
-  }
-}
-
-export function parseAndFormatApiError(
-  error: unknown,
-  authType?: AuthType,
-): string {
-  if (isStructuredError(error)) {
-    let text = `[API Error: ${error.message}]`;
-    if (error.status === 429) {
-      text += getRateLimitMessage(authType);
-    }
-    return text;
-  }
-
-  // The error message might be a string containing a JSON object.
   if (typeof error === 'string') {
-    const jsonStart = error.indexOf('{');
-    if (jsonStart === -1) {
-      return `[API Error: ${error}]`; // Not a JSON error, return as is.
+    message = `An unexpected error occurred: ${error}`;
+  } else if (error instanceof Error) {
+    message = `An unexpected error occurred: ${error.message}`;
+    if ((error as any).type === 'UNKNOWN_TOOL') {
+        message = `Error: Tool not found - ${(error as any).details?.toolName || 'unknown tool'}. Please ensure it's configured correctly.`;
     }
 
-    const jsonString = error.substring(jsonStart);
-
-    try {
-      const parsedError = JSON.parse(jsonString) as unknown;
-      if (isApiError(parsedError)) {
-        let finalMessage = parsedError.error.message;
-        try {
-          // See if the message is a stringified JSON with another error
-          const nestedError = JSON.parse(finalMessage) as unknown;
-          if (isApiError(nestedError)) {
-            finalMessage = nestedError.error.message;
+    const structuredError = error as StructuredError;
+    if (structuredError.type) {
+      switch (structuredError.type) {
+        case 'GOOGLE_AUTH_ERROR':
+          message = `Google Authentication Error: ${structuredError.message}`;
+          if (structuredError.details?.code) message += ` (${structuredError.details.code})`;
+          troubleshooting = `Troubleshooting:\n`;
+          troubleshooting += `- Ensure you are logged in with the correct Google account ('gcloud auth login').\n`;
+          troubleshooting += `- Check your internet connection.\n`;
+          if (currentAuthType === AuthType.LOGIN_WITH_GOOGLE_PERSONAL && structuredError.details?.reason === "PROJECT_ID_REQUIRED_FOR_WORKSPACE") {
+            troubleshooting += `- For Google Workspace accounts, a Google Cloud Project is required. Please set the GOOGLE_CLOUD_PROJECT environment variable.\n`;
+          } else {
+            troubleshooting += `- Verify API access and permissions for your account/project.\n`;
           }
-        } catch (_e) {
-          // It's not a nested JSON error, so we just use the message as is.
-        }
-        let text = `[API Error: ${finalMessage} (Status: ${parsedError.error.status})]`;
-        if (parsedError.error.code === 429) {
-          text += getRateLimitMessage(authType);
-        }
-        return text;
+          break;
+        case 'DOLPHIN_CLI_API_KEY_ERROR':
+          message = `dolphin-cli API Key Error: ${structuredError.message}`;
+          troubleshooting = `Troubleshooting:\n`;
+          troubleshooting += `- Ensure the DOLPHIN_CLI_API_KEY environment variable is set correctly.\n`;
+          troubleshooting += `- Verify your API key for the Google Gemini API is valid and has not expired. You can generate a new one from Google AI Studio.\n`;
+          break;
+        case 'VERTEX_AI_ERROR':
+          message = `Vertex AI Error: ${structuredError.message}`;
+          if (structuredError.details?.status) message += ` (Status: ${structuredError.details.status})`;
+          troubleshooting = `Troubleshooting:\n`;
+          troubleshooting += `- Ensure the GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION environment variables are set correctly if not using Vertex AI express mode.\n`;
+          troubleshooting += `- If using express mode, ensure GOOGLE_API_KEY is set for Vertex.\n`;
+          troubleshooting += `- Verify the Vertex AI API is enabled in your Google Cloud project.\n`;
+          troubleshooting += `- Check IAM permissions for the Vertex AI service.\n`;
+          break;
+        case 'API_REQUEST_FAILED':
+          message = `API Request Failed: ${structuredError.message}`;
+          if (structuredError.details?.httpStatus) message += ` (${structuredError.details.httpStatus})`;
+           troubleshooting = `Troubleshooting:\n`;
+          troubleshooting += `- Check your internet connection.\n`;
+          troubleshooting += `- The Google Gemini service might be temporarily unavailable. Try again later.\n`;
+          if (structuredError.details?.httpStatus === 429) {
+            troubleshooting += `- You may have hit a rate limit. Please check usage quotas for the Google Gemini API.\n`;
+          }
+          break;
+        case 'CONFIG_ERROR':
+            message = `Configuration Error: ${structuredError.message}`;
+            if (structuredError.details?.path) message += ` (File: ${structuredError.details.path})`;
+            troubleshooting = `Troubleshooting:\n`;
+            troubleshooting += `- Please check your '.dolphin-cli/settings.json' files (both in your project and home directory).\n`;
+            if (structuredError.details?.key) troubleshooting += `- Specifically, look at the '${structuredError.details.key}' setting.\n`;
+            break;
+        case 'TOOL_EXECUTION_ERROR':
+            message = `Tool Execution Error: Failed to run tool '${structuredError.details?.toolName || 'unknown'}'. ${structuredError.message}`;
+            if (structuredError.details?.exitCode) message += ` (Exit code: ${structuredError.details.exitCode})`;
+            if (structuredError.details?.stderr) troubleshooting += `Stderr: ${structuredError.details.stderr}\n`;
+            troubleshooting += `Troubleshooting:\n`;
+            troubleshooting += `- Ensure the tool and its dependencies are correctly installed and configured.\n`;
+            if (structuredError.details?.toolName === 'run_shell_command') {
+                 troubleshooting += `- Verify the shell command itself is valid and has necessary permissions.\n`;
+            }
+            break;
+        default:
+          message = `Error (${structuredError.type}): ${structuredError.message}`;
+          if (structuredError.details) {
+            message += ` Details: ${JSON.stringify(structuredError.details)}`;
+          }
+          break;
       }
-    } catch (_e) {
-      // Not a valid JSON, fall through and return the original message.
     }
-    return `[API Error: ${error}]`;
   }
 
-  return '[API Error: An unknown error occurred.]';
+  return troubleshooting ? `${message}\n\n${troubleshooting}` : message;
 }

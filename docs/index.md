@@ -1,23 +1,23 @@
-# Welcome to Gemini CLI documentation
+# Welcome to dolphin-cli documentation
 
-This documentation provides a comprehensive guide to installing, using, and developing Gemini CLI. This tool lets you interact with Gemini models through a command-line interface.
+This documentation provides a comprehensive guide to installing, using, and developing dolphin-cli. This tool lets you interact with Google Gemini models through a command-line interface.
 
 ## Overview
 
-Gemini CLI brings the capabilities of Gemini models to your terminal in an interactive Read-Eval-Print Loop (REPL) environment. Gemini CLI consists of a client-side application (`packages/cli`) that communicates with a local server (`packages/core`), which in turn manages requests to the Gemini API and its AI models. Gemini CLI also contains a variety of tools for tasks such as performing file system operations, running shells, and web fetching, which are managed by `packages/core`.
+dolphin-cli brings the capabilities of Google Gemini models to your terminal in an interactive Read-Eval-Print Loop (REPL) environment. dolphin-cli consists of a client-side application (`packages/cli`) that communicates with a local server (`packages/core`), which in turn manages requests to the Google Gemini API and its AI models. dolphin-cli also contains a variety of tools for tasks such as performing file system operations, running shells, and web fetching, which are managed by `packages/core`.
 
 ## Navigating the documentation
 
 This documentation is organized into the following sections:
 
-- **[Execution and Deployment](./deployment.md):** Information for running Gemini CLI.
-- **[Architecture Overview](./architecture.md):** Understand the high-level design of Gemini CLI, including its components and how they interact.
+- **[Execution and Deployment](./deployment.md):** Information for running dolphin-cli.
+- **[Architecture Overview](./architecture.md):** Understand the high-level design of dolphin-cli, including its components and how they interact.
 - **CLI Usage:** Documentation for `packages/cli`.
   - **[CLI Introduction](./cli/index.md):** Overview of the command-line interface.
   - **[Commands](./cli/commands.md):** Description of available CLI commands.
   - **[Configuration](./cli/configuration.md):** Information on configuring the CLI.
   - **[Checkpointing](./checkpointing.md):** Documentation for the checkpointing feature.
-  - **[Extensions](./extension.md):** How to extend the CLI with new functionality.
+  - **[Extensions](./extension.md):** How to extend dolphin-cli with new functionality.
   - **[Telemetry](./telemetry.md):** Overview of telemetry in the CLI.
 - **Core Details:** Documentation for `packages/core`.
   - **[Core Introduction](./core/index.md):** Overview of the core component.
@@ -32,6 +32,6 @@ This documentation is organized into the following sections:
   - **[Memory Tool](./tools/memory.md):** Documentation for the `save_memory` tool.
 - **[Contributing & Development Guide](../CONTRIBUTING.md):** Information for contributors and developers, including setup, building, testing, and coding conventions.
 - **[Troubleshooting Guide](./troubleshooting.md):** Find solutions to common problems and FAQs.
-- **[Terms of Service and Privacy Notice](./tos-privacy.md):** Information on the terms of service and privacy notices applicable to your use of Gemini CLI.
+- **[Terms of Service and Privacy Notice](./tos-privacy.md):** Information on the terms of service and privacy notices applicable to your use of dolphin-cli.
 
-We hope this documentation helps you make the most of the Gemini CLI!
+We hope this documentation helps you make the most of the dolphin-cli!

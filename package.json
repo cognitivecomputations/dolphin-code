@@ -1,5 +1,6 @@
 {
-  "name": "@google/gemini-cli",
+  "name": "@google/dolphin-cli-monorepo",
+  "private": true,
   "version": "0.1.5",
   "engines": {
     "node": ">=18.0.0"
@@ -8,9 +9,9 @@
   "workspaces": [
     "packages/*"
   ],
-  "repository": "google-gemini/gemini-cli",
+  "repository": "google/dolphin-cli",
   "config": {
-    "sandboxImageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/sandbox:0.1.4"
+    "sandboxImageUri": "us-docker.pkg.dev/gemini-code-dev/dolphin-cli/sandbox:0.1.4"
   },
   "scripts": {
     "generate": "node scripts/generate-git-commit-info.js",
@@ -23,9 +24,9 @@
     "test:ci": "npm run test:ci --workspaces --if-present",
     "test:e2e": "npm run test:integration:sandbox:none -- --verbose --keep-output",
     "test:integration:all": "npm run test:integration:sandbox:none && npm run test:integration:sandbox:docker && npm run test:integration:sandbox:podman",
-    "test:integration:sandbox:none": "GEMINI_SANDBOX=false node integration-tests/run-tests.js",
-    "test:integration:sandbox:docker": "GEMINI_SANDBOX=docker node integration-tests/run-tests.js",
-    "test:integration:sandbox:podman": "GEMINI_SANDBOX=podman node integration-tests/run-tests.js",
+    "test:integration:sandbox:none": "DOLPHIN_CLI_SANDBOX=false node integration-tests/run-tests.js",
+    "test:integration:sandbox:docker": "DOLPHIN_CLI_SANDBOX=docker node integration-tests/run-tests.js",
+    "test:integration:sandbox:podman": "DOLPHIN_CLI_SANDBOX=podman node integration-tests/run-tests.js",
     "start": "node scripts/start.js",
     "debug": "cross-env DEBUG=1 node --inspect-brk scripts/start.js",
     "lint:fix": "eslint . --fix && eslint integration-tests --fix",
@@ -51,7 +52,7 @@
     "start:gcp": "concurrently --raw --kill-others \"npm run telemetry -- --target=gcp\" \"npm start\""
   },
   "bin": {
-    "gemini": "bundle/gemini.js"
+    "dolphin-cli": "bundle/dolphin-cli.js"
   },
   "files": [
     "bundle/",
@@ -62,7 +63,7 @@
     "@types/micromatch": "^4.0.9",
     "@types/mime-types": "^2.1.4",
     "@types/minimatch": "^5.1.2",
-    "@vitest/coverage-v8": "^3.1.1",
+    "@vitest/coverage-v8": "~0.32.1",
     "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "esbuild": "^0.25.0",
@@ -80,9 +81,10 @@
     "prettier": "^3.5.3",
     "react-devtools-core": "^4.28.5",
     "typescript-eslint": "^8.30.1",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "vitest": "~0.32.4"
   },
   "dependencies": {
-    "@google/gemini-cli": "^0.1.1"
+    "@google/dolphin-cli": "^0.1.1"
   }
 }

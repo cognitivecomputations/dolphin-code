@@ -4,37 +4,75 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'fs/promises';
-import os from 'os';
-import { join as pathJoin } from 'node:path';
-import { getErrorMessage } from '@google/gemini-cli-core';
+import commandExists from 'command-exists';
+import { getErrorMessage, AuthType } from '@google/dolphin-cli-core'; // Corrected import
+// Assuming DOLPHIN_CLI_API_KEY and DOLPHIN_CLI_SANDBOX will be exported from core or defined here if only client-side
+const DOLPHIN_CLI_API_KEY_ENV_VAR = 'DOLPHIN_CLI_API_KEY';
+const DOLPHIN_CLI_SANDBOX_ENV_VAR = 'DOLPHIN_CLI_SANDBOX';
+const DOLPHIN_CLI_MODEL_ENV_VAR = 'DOLPHIN_CLI_MODEL';
 
-const warningsFilePath = pathJoin(os.tmpdir(), 'gemini-cli-warnings.txt');
+// Old names for deprecation warnings
+const OLD_GEMINI_API_KEY_ENV_VAR = 'GEMINI_API_KEY';
+const OLD_GEMINI_MODEL_ENV_VAR = 'GEMINI_MODEL';
+const OLD_GEMINI_SANDBOX_ENV_VAR = 'GEMINI_SANDBOX';
 
-export async function getStartupWarnings(): Promise<string[]> {
-  try {
-    await fs.access(warningsFilePath); // Check if file exists
-    const warningsContent = await fs.readFile(warningsFilePath, 'utf-8');
-    const warnings = warningsContent
-      .split('\n')
-      .filter((line) => line.trim() !== '');
-    try {
-      await fs.unlink(warningsFilePath);
-    } catch {
-      warnings.push('Warning: Could not delete temporary warnings file.');
-    }
-    return warnings;
-  } catch (err: unknown) {
-    // If fs.access throws, it means the file doesn't exist or is not accessible.
-    // This is not an error in the context of fetching warnings, so return empty.
-    // Only return an error message if it's not a "file not found" type error.
-    // However, the original logic returned an error message for any fs.existsSync failure.
-    // To maintain closer parity while making it async, we'll check the error code.
-    // ENOENT is "Error NO ENTry" (file not found).
-    if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-      return []; // File not found, no warnings to return.
-    }
-    // For other errors (permissions, etc.), return the error message.
-    return [`Error checking/reading warnings file: ${getErrorMessage(err)}`];
+
+function hasPotentiallyConfiguredADC(): boolean {
+  return !!process.env.GOOGLE_APPLICATION_CREDENTIALS || !!process.env.GOOGLE_CLOUD_PROJECT;
+}
+
+export async function getStartupWarnings(selectedAuthType?: AuthType): Promise<string[]> {
+  const warnings: string[] = [];
+
+  // Check for API Key if it's the selected/implied auth type or no auth type is yet determined
+  const needsApiKeyCheck = !selectedAuthType || selectedAuthType === AuthType.USE_GEMINI;
+
+  if (needsApiKeyCheck &&
+      !process.env[DOLPHIN_CLI_API_KEY_ENV_VAR] &&
+      !process.env.GOOGLE_API_KEY && // For Vertex Express or other Google Cloud APIs via key
+      !hasPotentiallyConfiguredADC()) {
+    warnings.push(
+      `Warning: ${DOLPHIN_CLI_API_KEY_ENV_VAR} (for Google AI Studio keys) or GOOGLE_API_KEY (for Vertex AI express mode) environment variable is not set, and Application Default Credentials don't appear to be configured. Authentication may fail unless you log in interactively or have another auth method selected.`,
+    );
   }
+
+  // Check for old environment variables
+  if (process.env[OLD_GEMINI_API_KEY_ENV_VAR]) {
+    warnings.push(
+      `Warning: ${OLD_GEMINI_API_KEY_ENV_VAR} is set. This variable is deprecated. Please use ${DOLPHIN_CLI_API_KEY_ENV_VAR} for Google AI Studio keys. If both are set, ${DOLPHIN_CLI_API_KEY_ENV_VAR} will be preferred.`,
+    );
+  }
+  if (process.env[OLD_GEMINI_MODEL_ENV_VAR]) {
+    warnings.push(
+      `Warning: ${OLD_GEMINI_MODEL_ENV_VAR} is set. This variable is deprecated. Please use ${DOLPHIN_CLI_MODEL_ENV_VAR}. If both are set, ${DOLPHIN_CLI_MODEL_ENV_VAR} will be preferred.`,
+    );
+  }
+  if (process.env[OLD_GEMINI_SANDBOX_ENV_VAR]) {
+    warnings.push(
+      `Warning: ${OLD_GEMINI_SANDBOX_ENV_VAR} is set. This variable is deprecated. Please use ${DOLPHIN_CLI_SANDBOX_ENV_VAR}. If both are set, ${DOLPHIN_CLI_SANDBOX_ENV_VAR} will be preferred.`,
+    );
+  }
+
+  const sandboxEnvValue = process.env[DOLPHIN_CLI_SANDBOX_ENV_VAR];
+  if (sandboxEnvValue === 'docker') {
+    try {
+      await commandExists('docker');
+    } catch (e) {
+      warnings.push(
+        `Warning: Docker command not found, but ${DOLPHIN_CLI_SANDBOX_ENV_VAR} is set to "docker". Sandboxing may not work as intended. Error: ${getErrorMessage(e)}`,
+      );
+    }
+  } else if (sandboxEnvValue === 'podman') {
+     try {
+      await commandExists('podman');
+    } catch (e) {
+      warnings.push(
+        `Warning: Podman command not found, but ${DOLPHIN_CLI_SANDBOX_ENV_VAR} is set to "podman". Sandboxing may not work. Error: ${getErrorMessage(e)}`,
+      );
+    }
+  }
+  // Note: sandbox-exec is macOS specific and its existence check is more complex.
+  // It's generally assumed to be available on macOS if specified.
+
+  return warnings;
 }

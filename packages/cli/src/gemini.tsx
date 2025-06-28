@@ -33,7 +33,7 @@ import {
   sessionId,
   logUserPrompt,
   AuthType,
-} from '@google/gemini-cli-core';
+} from '@google/dolphin-cli-core'; // Updated import
 import { validateAuthMethod } from './config/auth.js';
 import { setMaxSizedBoxDebugging } from './ui/components/shared/MaxSizedBox.js';
 
@@ -52,7 +52,7 @@ function getNodeMemoryArgs(config: Config): string[] {
     );
   }
 
-  if (process.env.GEMINI_CLI_NO_RELAUNCH) {
+  if (process.env.DOLPHIN_CLI_NO_RELAUNCH) { // Updated env var
     return [];
   }
 
@@ -70,7 +70,7 @@ function getNodeMemoryArgs(config: Config): string[] {
 
 async function relaunchWithAdditionalArgs(additionalArgs: string[]) {
   const nodeArgs = [...additionalArgs, ...process.argv.slice(1)];
-  const newEnv = { ...process.env, GEMINI_CLI_NO_RELAUNCH: 'true' };
+  const newEnv = { ...process.env, DOLPHIN_CLI_NO_RELAUNCH: 'true' }; // Updated env var
 
   const child = spawn(process.execPath, nodeArgs, {
     stdio: 'inherit',
@@ -101,19 +101,17 @@ export async function main() {
   const extensions = loadExtensions(workspaceRoot);
   const config = await loadCliConfig(settings.merged, extensions, sessionId);
 
-  // set default fallback to gemini api key
-  // this has to go after load cli because thats where the env is set
-  if (!settings.merged.selectedAuthType && process.env.GEMINI_API_KEY) {
+  // set default fallback to api key if no auth type is selected and key is present
+  if (!settings.merged.selectedAuthType && process.env.DOLPHIN_CLI_API_KEY) { // Updated env var
     settings.setValue(
       SettingScope.User,
       'selectedAuthType',
-      AuthType.USE_GEMINI,
+      AuthType.USE_GEMINI, // This AuthType refers to using the Google Gemini API via an API key.
     );
   }
 
   setMaxSizedBoxDebugging(config.getDebugMode());
 
-  // Initialize centralized FileDiscoveryService
   config.getFileService();
   if (config.getCheckpointingEnabled()) {
     try {
@@ -125,8 +123,6 @@ export async function main() {
 
   if (settings.merged.theme) {
     if (!themeManager.setActiveTheme(settings.merged.theme)) {
-      // If the theme is not found during initial load, log a warning and continue.
-      // The useThemeCommand hook in App.tsx will handle opening the dialog.
       console.warn(`Warning: Theme "${settings.merged.theme}" not found.`);
     }
   }
@@ -135,12 +131,10 @@ export async function main() {
     ? getNodeMemoryArgs(config)
     : [];
 
-  // hop into sandbox if we are outside and sandboxing is enabled
   if (!process.env.SANDBOX) {
     const sandboxConfig = config.getSandbox();
     if (sandboxConfig) {
       if (settings.merged.selectedAuthType) {
-        // Validate authentication here because the sandbox will interfere with the Oauth2 web redirect.
         try {
           const err = validateAuthMethod(settings.merged.selectedAuthType);
           if (err) {
@@ -153,20 +147,17 @@ export async function main() {
         }
       }
       await start_sandbox(sandboxConfig, memoryArgs);
-      process.exit(0);
+      process.exit(0); // Parent process exits after sandbox starts
     } else {
-      // Not in a sandbox and not entering one, so relaunch with additional
-      // arguments to control memory usage if needed.
       if (memoryArgs.length > 0) {
         await relaunchWithAdditionalArgs(memoryArgs);
-        process.exit(0);
+        process.exit(0); // Parent process exits after relaunch
       }
     }
   }
   let input = config.getQuestion();
   const startupWarnings = await getStartupWarnings();
 
-  // Render UI, passing necessary config values. Check that there is no command line question.
   if (process.stdin.isTTY && input?.length === 0) {
     setWindowTitle(basename(workspaceRoot), settings);
     render(
@@ -181,8 +172,7 @@ export async function main() {
     );
     return;
   }
-  // If not a TTY, read from stdin
-  // This is for cases where the user pipes input directly into the command
+
   if (!process.stdin.isTTY) {
     input += await readStdin();
   }
@@ -198,7 +188,6 @@ export async function main() {
     prompt_length: input.length,
   });
 
-  // Non-interactive mode handled by runNonInteractive
   const nonInteractiveConfig = await loadNonInteractiveConfig(
     config,
     extensions,
@@ -211,7 +200,7 @@ export async function main() {
 
 function setWindowTitle(title: string, settings: LoadedSettings) {
   if (!settings.merged.hideWindowTitle) {
-    process.stdout.write(`\x1b]2; Gemini - ${title} \x07`);
+    process.stdout.write(`\x1b]2;dolphin-cli - ${title}\x07`); // Updated title
 
     process.on('exit', () => {
       process.stdout.write(`\x1b]2;\x07`);
@@ -219,9 +208,7 @@ function setWindowTitle(title: string, settings: LoadedSettings) {
   }
 }
 
-// --- Global Unhandled Rejection Handler ---
 process.on('unhandledRejection', (reason, _promise) => {
-  // Log other unexpected unhandled rejections as critical errors
   console.error('=========================================');
   console.error('CRITICAL: Unhandled Promise Rejection!');
   console.error('=========================================');
@@ -230,7 +217,6 @@ process.on('unhandledRejection', (reason, _promise) => {
   if (!(reason instanceof Error)) {
     console.error(reason);
   }
-  // Exit for genuinely unhandled errors
   process.exit(1);
 });
 
@@ -241,7 +227,6 @@ async function loadNonInteractiveConfig(
 ) {
   let finalConfig = config;
   if (config.getApprovalMode() !== ApprovalMode.YOLO) {
-    // Everything is not allowed, ensure that only read-only tools are configured.
     const existingExcludeTools = settings.merged.excludeTools || [];
     const interactiveTools = [
       ShellTool.Name,
@@ -274,17 +259,14 @@ async function validateNonInterActiveAuth(
   selectedAuthType: AuthType | undefined,
   nonInteractiveConfig: Config,
 ) {
-  // making a special case for the cli. many headless environments might not have a settings.json set
-  // so if GEMINI_API_KEY is set, we'll use that. However since the oauth things are interactive anyway, we'll
-  // still expect that exists
-  if (!selectedAuthType && !process.env.GEMINI_API_KEY) {
+  if (!selectedAuthType && !process.env.DOLPHIN_CLI_API_KEY) { // Updated env var
     console.error(
-      'Please set an Auth method in your .gemini/settings.json OR specify GEMINI_API_KEY env variable file before running',
+      'Please set an Auth method in your .dolphin-cli/settings.json OR specify DOLPHIN_CLI_API_KEY env variable file before running', // Updated path
     );
     process.exit(1);
   }
 
-  selectedAuthType = selectedAuthType || AuthType.USE_GEMINI;
+  selectedAuthType = selectedAuthType || AuthType.USE_GEMINI; // Stays as USE_GEMINI for Google Gemini API key
   const err = validateAuthMethod(selectedAuthType);
   if (err != null) {
     console.error(err);

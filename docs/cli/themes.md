@@ -1,10 +1,10 @@
 # Themes
 
-Gemini CLI supports a variety of themes to customize its color scheme and appearance. You can change the theme to suit your preferences via the `/theme` command or `"theme":` configuration setting.
+dolphin-cli supports a variety of themes to customize its color scheme and appearance. You can change the theme to suit your preferences via the `/theme` command or `"theme":` configuration setting.
 
 ## Available Themes
 
-Gemini CLI comes with a selection of pre-defined themes, which you can list using the `/theme` command within Gemini CLI:
+dolphin-cli comes with a selection of pre-defined themes, which you can list using the `/theme` command within dolphin-cli:
 
 - **Dark Themes:**
   - `ANSI`
@@ -23,14 +23,14 @@ Gemini CLI comes with a selection of pre-defined themes, which you can list usin
 
 ### Changing Themes
 
-1.  Enter `/theme` into Gemini CLI.
+1.  Enter `/theme` into dolphin-cli.
 2.  A dialog or selection prompt appears, listing the available themes.
 3.  Using the arrow keys, select a theme. Some interfaces might offer a live preview or highlight as you select.
 4.  Confirm your selection to apply the theme.
 
 ### Theme Persistence
 
-Selected themes are saved in Gemini CLI's [configuration](./configuration.md) so your preference is remembered across sessions.
+Selected themes are saved in dolphin-cli's [configuration](./configuration.md) so your preference is remembered across sessions.
 
 ## Dark Themes
 

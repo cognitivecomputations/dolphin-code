@@ -4,55 +4,46 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as os from 'os';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { randomUUID } from 'crypto';
-import { GEMINI_DIR } from './paths.js';
+import { DOLPHIN_CLI_DIR } from './paths.js'; // Corrected import
 
-const homeDir = os.homedir() ?? '';
-const geminiDir = path.join(homeDir, GEMINI_DIR);
-const userIdFile = path.join(geminiDir, 'user_id');
+const USER_ID_FILE = 'user_id.txt';
 
-function ensureGeminiDirExists() {
-  if (!fs.existsSync(geminiDir)) {
-    fs.mkdirSync(geminiDir, { recursive: true });
-  }
-}
-
-function readUserIdFromFile(): string | null {
-  if (fs.existsSync(userIdFile)) {
-    const userId = fs.readFileSync(userIdFile, 'utf-8').trim();
-    return userId || null;
-  }
-  return null;
-}
-
-function writeUserIdToFile(userId: string) {
-  fs.writeFileSync(userIdFile, userId, 'utf-8');
-}
-
-/**
- * Retrieves the persistent user ID from a file, creating it if it doesn't exist.
- * This ID is used for unique user tracking.
- * @returns A UUID string for the user.
- */
-export function getPersistentUserId(): string {
-  try {
-    ensureGeminiDirExists();
-    let userId = readUserIdFromFile();
-
-    if (!userId) {
-      userId = randomUUID();
-      writeUserIdToFile(userId);
+function ensureDolphinCliDirExists() { // Renamed
+  const dirPath = path.join(os.homedir(), DOLPHIN_CLI_DIR); // Uses new constant
+  if (!fs.existsSync(dirPath)) {
+    try {
+      fs.mkdirSync(dirPath, { recursive: true });
+    } catch (e) {
+      // console.warn(`Could not create ${DOLPHIN_CLI_DIR} directory:`, e);
     }
+  }
+}
 
-    return userId;
-  } catch (error) {
-    console.error(
-      'Error accessing persistent user ID file, generating ephemeral ID:',
-      error,
-    );
-    return '123456789';
+export function getOrSetUserId(): string {
+  ensureDolphinCliDirExists(); // Renamed call
+  const userIdFilePath = path.join(os.homedir(), DOLPHIN_CLI_DIR, USER_ID_FILE); // Uses new constant
+
+  try {
+    if (fs.existsSync(userIdFilePath)) {
+      const userId = fs.readFileSync(userIdFilePath, 'utf-8').trim();
+      if (userId) {
+        return userId;
+      }
+    }
+  } catch (e) {
+    // console.warn("Error reading user ID file, will generate a new one:", e);
+  }
+
+  const newUserId = randomUUID();
+  try {
+    fs.writeFileSync(userIdFilePath, newUserId, 'utf-8');
+    return newUserId;
+  } catch (e) {
+    // console.warn("Error writing user ID file, ID will be ephemeral for this session:", e);
+    return newUserId;
   }
 }

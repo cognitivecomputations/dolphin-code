@@ -1,9 +1,9 @@
-# Makefile for gemini-cli
+# Makefile for dolphin-cli
 
 .PHONY: help install build build-sandbox build-all test lint format preflight clean start debug release run-npx create-alias
 
 help:
-	@echo "Makefile for gemini-cli"
+	@echo "Makefile for dolphin-cli"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make install          - Install npm dependencies"
@@ -15,11 +15,11 @@ help:
 	@echo "  make format           - Format the code"
 	@echo "  make preflight        - Run formatting, linting, and tests"
 	@echo "  make clean            - Remove generated files"
-	@echo "  make start            - Start the Gemini CLI"
-	@echo "  make debug            - Start the Gemini CLI in debug mode"
+	@echo "  make start            - Start the dolphin-cli"
+	@echo "  make debug            - Start the dolphin-cli in debug mode"
 	@echo "  make release          - Publish a new release"
 	@echo "  make run-npx          - Run the CLI using npx (for testing the published package)"
-	@echo "  make create-alias     - Create a 'gemini' alias for your shell"
+	@echo "  make create-alias     - Create a 'dolphin-cli' alias for your shell"
 
 install:
 	npm install
@@ -58,7 +58,7 @@ release:
 	npm run publish:release
 
 run-npx:
-	npx https://github.com/google-gemini/gemini-cli
+	npx @google/dolphin-cli # Assuming the npx target will be the new package name
 
 create-alias:
 	scripts/create_alias.sh

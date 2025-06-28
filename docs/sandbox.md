@@ -1,17 +1,17 @@
-# Sandboxing in the Gemini CLI
+# Sandboxing in the dolphin-cli
 
-This document provides a guide to sandboxing in the Gemini CLI, including prerequisites, quickstart, and configuration.
+This document provides a guide to sandboxing in the dolphin-cli, including prerequisites, quickstart, and configuration.
 
 ## Prerequisites
 
-Before using sandboxing, you need to install and set up the Gemini CLI:
+Before using sandboxing, you need to install and set up the dolphin-cli:
 
 ```bash
-# install gemini-cli with npm
-npm install -g @google/gemini-cli
+# install dolphin-cli with npm
+npm install -g @google/dolphin-cli
 
 # Verify installation
-gemini --version
+dolphin-cli --version
 ```
 
 ## Overview of sandboxing
@@ -45,11 +45,11 @@ Cross-platform sandboxing with complete process isolation.
 
 ```bash
 # Enable sandboxing with command flag
-gemini -s -p "analyze the code structure"
+dolphin-cli -s -p "analyze the code structure"
 
 # Use environment variable
-export GEMINI_SANDBOX=true
-gemini -p "run the test suite"
+export DOLPHIN_CLI_SANDBOX=true
+dolphin-cli -p "run the test suite"
 
 # Configure in settings.json
 {
@@ -62,8 +62,8 @@ gemini -p "run the test suite"
 ### Enable sandboxing (in order of precedence)
 
 1. **Command flag**: `-s` or `--sandbox`
-2. **Environment variable**: `GEMINI_SANDBOX=true|docker|podman|sandbox-exec`
-3. **Settings file**: `"sandbox": true` in `settings.json`
+2. **Environment variable**: `DOLPHIN_CLI_SANDBOX=true|docker|podman|sandbox-exec`
+3. **Settings file**: `"sandbox": true` in `settings.json` (in `.dolphin-cli/settings.json`)
 
 ### macOS Seatbelt profiles
 
@@ -74,6 +74,8 @@ Built-in profiles (set via `SEATBELT_PROFILE` env var):
 - `permissive-proxied`: Write restrictions, network via proxy
 - `restrictive-open`: Strict restrictions, network allowed
 - `restrictive-closed`: Maximum restrictions
+
+Custom profiles can be defined in `.dolphin-cli/sandbox-macos-<profile_name>.sb`.
 
 ## Linux UID/GID handling
 
@@ -95,8 +97,8 @@ export SANDBOX_SET_UID_GID=false  # Disable UID/GID mapping
 
 **Missing commands**
 
-- Add to custom Dockerfile.
-- Install via `sandbox.bashrc`.
+- Add to custom Dockerfile (e.g. `.dolphin-cli/sandbox.Dockerfile`).
+- Install via `sandbox.bashrc` (e.g. `.dolphin-cli/sandbox.bashrc`).
 
 **Network issues**
 
@@ -106,17 +108,17 @@ export SANDBOX_SET_UID_GID=false  # Disable UID/GID mapping
 ### Debug mode
 
 ```bash
-DEBUG=1 gemini -s -p "debug command"
+DEBUG=1 dolphin-cli -s -p "debug command"
 ```
 
 ### Inspect sandbox
 
 ```bash
 # Check environment
-gemini -s -p "run shell command: env | grep SANDBOX"
+dolphin-cli -s -p "run shell command: env | grep SANDBOX"
 
 # List mounts
-gemini -s -p "run shell command: mount | grep workspace"
+dolphin-cli -s -p "run shell command: mount | grep workspace"
 ```
 
 ## Security notes

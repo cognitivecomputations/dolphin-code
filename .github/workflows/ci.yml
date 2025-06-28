@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: Gemini CLI CI
+name: dolphin-cli CI
 
 on:
   push:
@@ -77,15 +77,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts-${{ matrix.node-version }}
-          path: . # Download to the root, this will include package-lock.json and packages/*/dist
-
-      # Restore/create package structure for dist folders if necessary.
-      # The download-artifact action with path: . should place them correctly if the
-      # upload paths were relative to the workspace root.
-      # Example: if uploaded `packages/cli/dist`, it will be at `./packages/cli/dist`.
+          path: .
 
       - name: Install dependencies for testing
-        run: npm ci # Install fresh dependencies using the downloaded package-lock.json
+        run: npm ci
 
       - name: Run tests and generate reports
         run: NO_COLOR=true npm run test:ci
@@ -120,11 +115,11 @@ jobs:
     if: always() && github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name == github.repository)
     continue-on-error: true
     permissions:
-      contents: read # For checkout
-      pull-requests: write # For commenting
+      contents: read
+      pull-requests: write
     strategy:
       matrix:
-        node-version: [20.x] # Should match the test job's matrix
+        node-version: [20.x]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -133,10 +128,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: coverage-reports-${{ matrix.node-version }}
-          path: coverage_artifact # Download to a specific directory
+          path: coverage_artifact
 
       - name: Post Coverage Comment using Composite Action
-        uses: ./.github/actions/post-coverage-comment # Path to the composite action directory
+        uses: ./.github/actions/post-coverage-comment
         with:
           cli_json_file: coverage_artifact/cli/coverage/coverage-summary.json
           core_json_file: coverage_artifact/core/coverage/coverage-summary.json

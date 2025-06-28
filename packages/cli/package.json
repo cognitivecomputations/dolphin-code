@@ -1,11 +1,11 @@
 {
-  "name": "@google/gemini-cli",
+  "name": "@google/dolphin-cli",
   "version": "0.1.5",
-  "description": "Gemini CLI",
+  "description": "dolphin-cli",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "gemini": "dist/index.js"
+    "dolphin-cli": "dist/index.js"
   },
   "scripts": {
     "build": "node ../../scripts/build_package.js",
@@ -25,10 +25,10 @@
     "dist"
   ],
   "config": {
-    "sandboxImageUri": "us-docker.pkg.dev/gemini-code-dev/gemini-cli/sandbox:0.1.1"
+    "sandboxImageUri": "us-docker.pkg.dev/gemini-code-dev/dolphin-cli/sandbox:0.1.1"
   },
   "dependencies": {
-    "@google/gemini-cli-core": "*",
+    "@google/dolphin-cli-core": "*",
     "@types/update-notifier": "^6.0.8",
     "command-exists": "^1.2.9",
     "diff": "^7.0.0",
@@ -66,7 +66,7 @@
     "ink-testing-library": "^4.0.0",
     "jsdom": "^26.1.0",
     "typescript": "^5.3.3",
-    "vitest": "^3.1.1"
+    "vitest": "~0.32.4"
   },
   "engines": {
     "node": ">=18"

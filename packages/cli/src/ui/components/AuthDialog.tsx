@@ -9,7 +9,7 @@ import { Box, Text, useInput } from 'ink';
 import { Colors } from '../colors.js';
 import { RadioButtonSelect } from './shared/RadioButtonSelect.js';
 import { LoadedSettings, SettingScope } from '../../config/settings.js';
-import { AuthType } from '@google/gemini-cli-core';
+import { AuthType } from '@google/dolphin-cli-core'; // Updated import
 import { validateAuthMethod } from '../../config/auth.js';
 
 interface AuthDialogProps {
@@ -33,7 +33,9 @@ export function AuthDialog({
       label: 'Login with Google',
       value: AuthType.LOGIN_WITH_GOOGLE_PERSONAL,
     },
-    { label: 'Gemini API Key', value: AuthType.USE_GEMINI },
+    // AuthType.USE_GEMINI refers to using the Google Gemini API via an API key.
+    // The label should reflect that this key is for the CLI to use that API.
+    { label: 'dolphin-cli API Key (for Google Gemini API)', value: AuthType.USE_GEMINI },
     { label: 'Vertex AI', value: AuthType.USE_VERTEX_AI },
   ];
 
@@ -58,13 +60,12 @@ export function AuthDialog({
   useInput((_input, key) => {
     if (key.escape) {
       if (settings.merged.selectedAuthType === undefined) {
-        // Prevent exiting if no auth method is set
         setErrorMessage(
           'You must select an auth method to proceed. Press Ctrl+C twice to exit.',
         );
         return;
       }
-      onSelect(undefined, SettingScope.User);
+      onSelect(undefined, SettingScope.User); // Allow closing if an auth method was already set
     }
   });
 
@@ -93,13 +94,12 @@ export function AuthDialog({
         <Text color={Colors.Gray}>(Use Enter to select)</Text>
       </Box>
       <Box marginTop={1}>
-        <Text>Terms of Services and Privacy Notice for Gemini CLI</Text>
+        <Text>Terms of Services and Privacy Notice for dolphin-cli</Text>
       </Box>
       <Box marginTop={1}>
         <Text color={Colors.AccentBlue}>
-          {
-            'https://github.com/google-gemini/gemini-cli/blob/main/docs/tos-privacy.md'
-          }
+          {/* This URL should ideally point to the new repo if it's renamed */}
+          {'https://github.com/google/dolphin-cli/blob/main/docs/tos-privacy.md'}
         </Text>
       </Box>
     </Box>

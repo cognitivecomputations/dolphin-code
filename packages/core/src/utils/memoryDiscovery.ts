@@ -5,306 +5,164 @@
  */
 
 import * as fs from 'fs/promises';
-import * as fsSync from 'fs';
 import * as path from 'path';
-import { homedir } from 'os';
-import { bfsFileSearch } from './bfsFileSearch.js';
-import {
-  GEMINI_CONFIG_DIR,
-  getAllGeminiMdFilenames,
-} from '../tools/memoryTool.js';
-import { FileDiscoveryService } from '../services/fileDiscoveryService.js';
+import * as os from 'os';
+import { DOLPHIN_CLI_DIR, DEFAULT_CONTEXT_FILE_NAME } from './paths.js'; // Corrected import
+import { walkAndFilterFiles, isNodeError } from './fileUtils.js';
 
-// Simple console logger, similar to the one previously in CLI's config.ts
-// TODO: Integrate with a more robust server-side logger if available/appropriate.
-const logger = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug: (...args: any[]) =>
-    console.debug('[DEBUG] [MemoryDiscovery]', ...args),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  warn: (...args: any[]) => console.warn('[WARN] [MemoryDiscovery]', ...args),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error: (...args: any[]) =>
-    console.error('[ERROR] [MemoryDiscovery]', ...args),
-};
 
-const MAX_DIRECTORIES_TO_SCAN_FOR_MEMORY = 200;
-
-interface GeminiFileContent {
-  filePath: string;
-  content: string | null;
-}
-
-async function findProjectRoot(startDir: string): Promise<string | null> {
-  let currentDir = path.resolve(startDir);
-  while (true) {
-    const gitPath = path.join(currentDir, '.git');
-    try {
-      const stats = await fs.stat(gitPath);
-      if (stats.isDirectory()) {
-        return currentDir;
-      }
-    } catch (error: unknown) {
-      // Don't log ENOENT errors as they're expected when .git doesn't exist
-      // Also don't log errors in test environments, which often have mocked fs
-      const isENOENT =
-        typeof error === 'object' &&
-        error !== null &&
-        'code' in error &&
-        (error as { code: string }).code === 'ENOENT';
-
-      // Only log unexpected errors in non-test environments
-      // process.env.NODE_ENV === 'test' or VITEST are common test indicators
-      const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST;
-
-      if (!isENOENT && !isTestEnv) {
-        if (typeof error === 'object' && error !== null && 'code' in error) {
-          const fsError = error as { code: string; message: string };
-          logger.warn(
-            `Error checking for .git directory at ${gitPath}: ${fsError.message}`,
-          );
-        } else {
-          logger.warn(
-            `Non-standard error checking for .git directory at ${gitPath}: ${String(error)}`,
-          );
-        }
-      }
-    }
-    const parentDir = path.dirname(currentDir);
-    if (parentDir === currentDir) {
-      return null;
-    }
-    currentDir = parentDir;
+export function getAllDolphinCliMdFilenames(contextFileNameSettings?: string | string[]): string[] { // Renamed
+  if (Array.isArray(contextFileNameSettings)) {
+    return contextFileNameSettings.map(name => name.toUpperCase());
   }
+  if (typeof contextFileNameSettings === 'string') {
+    return [contextFileNameSettings.toUpperCase()];
+  }
+  return [DEFAULT_CONTEXT_FILE_NAME.toUpperCase()];
 }
 
-async function getGeminiMdFilePathsInternal(
-  currentWorkingDirectory: string,
-  userHomePath: string,
-  debugMode: boolean,
-  fileService: FileDiscoveryService,
-  extensionContextFilePaths: string[] = [],
+interface DolphinCliFileContent { // Renamed
+  path: string;
+  content: string;
+}
+
+async function getDolphinCliMdFilePathsInternal( // Renamed
+  projectRoot: string,
+  configuredContextFileNames: string[],
+  debugMode = false,
 ): Promise<string[]> {
-  const allPaths = new Set<string>();
-  const geminiMdFilenames = getAllGeminiMdFilenames();
+  const homeDir = os.homedir();
+  const pathsToSearch: string[] = [];
 
-  for (const geminiMdFilename of geminiMdFilenames) {
-    const resolvedCwd = path.resolve(currentWorkingDirectory);
-    const resolvedHome = path.resolve(userHomePath);
-    const globalMemoryPath = path.join(
-      resolvedHome,
-      GEMINI_CONFIG_DIR,
-      geminiMdFilename,
-    );
+  const globalDolphinCliDir = path.join(homeDir, DOLPHIN_CLI_DIR); // Uses new constant
+  try {
+    await fs.access(globalDolphinCliDir);
+    for (const filename of configuredContextFileNames) {
+      const globalPath = path.join(globalDolphinCliDir, filename);
+       try {
+        await fs.access(globalPath);
+        pathsToSearch.push(globalPath);
+      } catch (_e) { /* File doesn't exist, skip */ }
+    }
+  } catch (_e) { /* Global dir doesn't exist, skip */ }
 
-    if (debugMode)
-      logger.debug(
-        `Searching for ${geminiMdFilename} starting from CWD: ${resolvedCwd}`,
-      );
-    if (debugMode) logger.debug(`User home directory: ${resolvedHome}`);
-
+  let currentDir = projectRoot;
+  while (currentDir && currentDir !== path.parse(currentDir).root && currentDir !== homeDir) {
+    for (const filename of configuredContextFileNames) {
+      const potentialPath = path.join(currentDir, filename);
+       try {
+        await fs.access(potentialPath);
+        if (!pathsToSearch.includes(potentialPath)) {
+            pathsToSearch.push(potentialPath);
+        }
+      } catch (_e) { /* File doesn't exist, skip */ }
+    }
+    const projectScopeDolphinCliDir = path.join(currentDir, DOLPHIN_CLI_DIR); // Uses new constant
     try {
-      await fs.access(globalMemoryPath, fsSync.constants.R_OK);
-      allPaths.add(globalMemoryPath);
-      if (debugMode)
-        logger.debug(
-          `Found readable global ${geminiMdFilename}: ${globalMemoryPath}`,
-        );
-    } catch {
-      if (debugMode)
-        logger.debug(
-          `Global ${geminiMdFilename} not found or not readable: ${globalMemoryPath}`,
-        );
-    }
-
-    const projectRoot = await findProjectRoot(resolvedCwd);
-    if (debugMode)
-      logger.debug(`Determined project root: ${projectRoot ?? 'None'}`);
-
-    const upwardPaths: string[] = [];
-    let currentDir = resolvedCwd;
-    // Determine the directory that signifies the top of the project or user-specific space.
-    const ultimateStopDir = projectRoot
-      ? path.dirname(projectRoot)
-      : path.dirname(resolvedHome);
-
-    while (currentDir && currentDir !== path.dirname(currentDir)) {
-      // Loop until filesystem root or currentDir is empty
-      if (debugMode) {
-        logger.debug(
-          `Checking for ${geminiMdFilename} in (upward scan): ${currentDir}`,
-        );
-      }
-
-      // Skip the global .gemini directory itself during upward scan from CWD,
-      // as global is handled separately and explicitly first.
-      if (currentDir === path.join(resolvedHome, GEMINI_CONFIG_DIR)) {
-        if (debugMode) {
-          logger.debug(
-            `Upward scan reached global config dir path, stopping upward search here: ${currentDir}`,
-          );
+        await fs.access(projectScopeDolphinCliDir);
+        for (const filename of configuredContextFileNames) {
+            const potentialPath = path.join(projectScopeDolphinCliDir, filename);
+            try {
+                await fs.access(potentialPath);
+                 if (!pathsToSearch.includes(potentialPath)) {
+                    pathsToSearch.push(potentialPath);
+                }
+            } catch (_e) {/* File doesn't exist, skip */}
         }
-        break;
-      }
+    } catch (_e) { /* Project scope dir doesn't exist, skip */ }
 
-      const potentialPath = path.join(currentDir, geminiMdFilename);
-      try {
-        await fs.access(potentialPath, fsSync.constants.R_OK);
-        // Add to upwardPaths only if it's not the already added globalMemoryPath
-        if (potentialPath !== globalMemoryPath) {
-          upwardPaths.unshift(potentialPath);
-          if (debugMode) {
-            logger.debug(
-              `Found readable upward ${geminiMdFilename}: ${potentialPath}`,
-            );
-          }
-        }
-      } catch {
-        if (debugMode) {
-          logger.debug(
-            `Upward ${geminiMdFilename} not found or not readable in: ${currentDir}`,
-          );
-        }
-      }
+    currentDir = path.dirname(currentDir);
+  }
 
-      // Stop condition: if currentDir is the ultimateStopDir, break after this iteration.
-      if (currentDir === ultimateStopDir) {
-        if (debugMode)
-          logger.debug(
-            `Reached ultimate stop directory for upward scan: ${currentDir}`,
-          );
-        break;
-      }
+  if (homeDir && projectRoot !== homeDir && !projectRoot.startsWith(homeDir + path.sep)) {
+     for (const filename of configuredContextFileNames) {
+        const homePath = path.join(homeDir, filename); // Check root of home
+        try {
+            await fs.access(homePath);
+            if (!pathsToSearch.includes(homePath)) pathsToSearch.push(homePath);
+        } catch (_e) { /* File doesn't exist, skip */ }
 
-      currentDir = path.dirname(currentDir);
-    }
-    upwardPaths.forEach((p) => allPaths.add(p));
+        // Global .dolphin-cli dir already checked, so no need to re-check here specifically for filename
+     }
+  }
 
-    const downwardPaths = await bfsFileSearch(resolvedCwd, {
-      fileName: geminiMdFilename,
-      maxDirs: MAX_DIRECTORIES_TO_SCAN_FOR_MEMORY,
-      debug: debugMode,
-      fileService,
-    });
-    downwardPaths.sort(); // Sort for consistent ordering, though hierarchy might be more complex
-    if (debugMode && downwardPaths.length > 0)
-      logger.debug(
-        `Found downward ${geminiMdFilename} files (sorted): ${JSON.stringify(
-          downwardPaths,
-        )}`,
-      );
-    // Add downward paths only if they haven't been included already (e.g. from upward scan)
-    for (const dPath of downwardPaths) {
-      allPaths.add(dPath);
+  const subDirFiles = await walkAndFilterFiles(
+    projectRoot,
+    (filePath, isDir) => {
+      if (isDir) return false;
+      const baseName = path.basename(filePath).toUpperCase();
+      return configuredContextFileNames.includes(baseName);
+    },
+    true,
+  );
+  for (const file of subDirFiles) {
+    if (!pathsToSearch.includes(file)) {
+        pathsToSearch.push(file);
     }
   }
 
-  // Add extension context file paths
-  for (const extensionPath of extensionContextFilePaths) {
-    allPaths.add(extensionPath);
-  }
+  const uniquePaths = Array.from(new Set(pathsToSearch));
 
-  const finalPaths = Array.from(allPaths);
-
-  if (debugMode)
-    logger.debug(
-      `Final ordered ${getAllGeminiMdFilenames()} paths to read: ${JSON.stringify(
-        finalPaths,
-      )}`,
+  if (debugMode) {
+    console.log(
+      `Dolphin CLI Core Debug: Found potential context files at: ${JSON.stringify(uniquePaths)}`,
     );
-  return finalPaths;
+  }
+  return uniquePaths;
 }
 
-async function readGeminiMdFiles(
+
+async function readDolphinCliMdFiles( // Renamed
   filePaths: string[],
-  debugMode: boolean,
-): Promise<GeminiFileContent[]> {
-  const results: GeminiFileContent[] = [];
+  debugMode = false,
+): Promise<DolphinCliFileContent[]> { // Renamed
+  const results: DolphinCliFileContent[] = []; // Renamed
   for (const filePath of filePaths) {
     try {
       const content = await fs.readFile(filePath, 'utf-8');
-      results.push({ filePath, content });
-      if (debugMode)
-        logger.debug(
-          `Successfully read: ${filePath} (Length: ${content.length})`,
-        );
-    } catch (error: unknown) {
-      const isTestEnv = process.env.NODE_ENV === 'test' || process.env.VITEST;
-      if (!isTestEnv) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.warn(
-          `Warning: Could not read ${getAllGeminiMdFilenames()} file at ${filePath}. Error: ${message}`,
+      results.push({ path: filePath, content });
+    } catch (e) {
+      if (debugMode) {
+        const message = e instanceof Error ? e.message : String(e);
+        console.warn(
+          `Warning: Could not read context file at ${filePath}. Error: ${message}`,
         );
       }
-      results.push({ filePath, content: null }); // Still include it with null content
-      if (debugMode) logger.debug(`Failed to read: ${filePath}`);
     }
   }
   return results;
 }
 
-function concatenateInstructions(
-  instructionContents: GeminiFileContent[],
-  // CWD is needed to resolve relative paths for display markers
-  currentWorkingDirectoryForDisplay: string,
+function formatMemoryForLLM(
+  instructionContents: DolphinCliFileContent[], // Renamed
+  debugMode = false,
 ): string {
+  if (instructionContents.length === 0) {
+    return '';
+  }
+  if (!debugMode) {
+    return instructionContents.map((item) => item.content).join('\n\n---\n\n');
+  }
+
   return instructionContents
-    .filter((item) => typeof item.content === 'string')
-    .map((item) => {
-      const trimmedContent = (item.content as string).trim();
-      if (trimmedContent.length === 0) {
-        return null;
-      }
-      const displayPath = path.isAbsolute(item.filePath)
-        ? path.relative(currentWorkingDirectoryForDisplay, item.filePath)
-        : item.filePath;
-      return `--- Context from: ${displayPath} ---\n${trimmedContent}\n--- End of Context from: ${displayPath} ---`;
-    })
-    .filter((block): block is string => block !== null)
+    .map((item) => `--- Context from: ${item.path} ---\n${item.content}`)
     .join('\n\n');
 }
 
-/**
- * Loads hierarchical GEMINI.md files and concatenates their content.
- * This function is intended for use by the server.
- */
-export async function loadServerHierarchicalMemory(
-  currentWorkingDirectory: string,
-  debugMode: boolean,
-  fileService: FileDiscoveryService,
-  extensionContextFilePaths: string[] = [],
-): Promise<{ memoryContent: string; fileCount: number }> {
-  if (debugMode)
-    logger.debug(
-      `Loading server hierarchical memory for CWD: ${currentWorkingDirectory}`,
-    );
-  // For the server, homedir() refers to the server process's home.
-  // This is consistent with how MemoryTool already finds the global path.
-  const userHomePath = homedir();
-  const filePaths = await getGeminiMdFilePathsInternal(
-    currentWorkingDirectory,
-    userHomePath,
+export async function getMemoryContents(
+  projectRoot: string,
+  configuredContextFileNamesInput?: string | string[],
+  debugMode = false,
+): Promise<string> {
+  const configuredNames = getAllDolphinCliMdFilenames(configuredContextFileNamesInput); // Renamed
+  const filePaths = await getDolphinCliMdFilePathsInternal( // Renamed
+    projectRoot,
+    configuredNames,
     debugMode,
-    fileService,
-    extensionContextFilePaths,
   );
-  if (filePaths.length === 0) {
-    if (debugMode) logger.debug('No GEMINI.md files found in hierarchy.');
-    return { memoryContent: '', fileCount: 0 };
+  if (debugMode) {
+    console.log(`Dolphin CLI Core Debug: Reading context files from: ${JSON.stringify(filePaths)}`);
   }
-  const contentsWithPaths = await readGeminiMdFiles(filePaths, debugMode);
-  // Pass CWD for relative path display in concatenated content
-  const combinedInstructions = concatenateInstructions(
-    contentsWithPaths,
-    currentWorkingDirectory,
-  );
-  if (debugMode)
-    logger.debug(
-      `Combined instructions length: ${combinedInstructions.length}`,
-    );
-  if (debugMode && combinedInstructions.length > 0)
-    logger.debug(
-      `Combined instructions (snippet): ${combinedInstructions.substring(0, 500)}...`,
-    );
-  return { memoryContent: combinedInstructions, fileCount: filePaths.length };
+  const contentsWithPaths = await readDolphinCliMdFiles(filePaths, debugMode); // Renamed
+  return formatMemoryForLLM(contentsWithPaths, debugMode);
 }
